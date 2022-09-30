@@ -1,0 +1,65 @@
+# ICC 2022 - Docker Basics Workshop - Part II, Docker Compose
+# ref: https://github.com/compose-spec/compose-spec/blob/master/spec.md
+---
+services:
+  gateway:
+    image: inductiveautomation/ignition:8.1.19
+    hostname: gateway
+    ports:
+      - 9088:8088
+    environment:
+      IGNITION_EDITION: standard
+      GATEWAY_ADMIN_PASSWORD: password
+      ACCEPT_IGNITION_EULA: "Y"
+    volumes:
+      - gateway-data:/usr/local/bin/ignition/data
+    command: >
+      -n Ignition-pt2
+
+  edge:
+    image: inductiveautomation/ignition:8.1.19
+    hostname: edge
+    ports:
+      - 9089:8088
+    environment:
+      IGNITION_EDITION: edge
+      GATEWAY_ADMIN_PASSWORD: password
+      ACCEPT_IGNITION_EULA: "Y"
+      GATEWAY_MODULES_ENABLED: enterprise-administration,modbus-driver-v2,opc-ua,perspective,tag-historian
+    volumes:
+      - edge-data:/usr/local/bin/ignition/data
+    command: >
+      -n Ignition-edge-pt2
+
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_USER: ignition
+      POSTGRES_DB: ignition
+    volumes:
+      - type: volume
+        source: db-data
+        target: /var/lib/postgresql/data
+    networks:
+      default:
+        aliases:
+          - db
+    
+  pgadmin:
+    image: dpage/pgadmin4:6.14
+    ports:
+      - 9090:80
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: password
+      PGADMIN_DISABLE_POSTFIX: true
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+      - ./db-init/servers.json:/pgadmin4/servers.json
+
+volumes:
+  gateway-data:
+  edge-data:
+  db-data:
+  pgadmin-data:

@@ -1,0 +1,167 @@
+# ICC 2022 - Docker Basics Workshop - Part II, Docker Compose
+# ref: https://github.com/compose-spec/compose-spec/blob/master/spec.md
+---
+# Top-level "services" key defines the different containers in our solution
+services:
+  # Each "service" (i.e. container) is given a name that will be resolvable to
+  # other containers in the same network via DNS.
+  gateway:
+    # This defines the image we're going to use
+    # ref: https://hub.docker.com/r/inductiveautomation/ignition
+    image: inductiveautomation/ignition:8.1.19
+    # This specifies the hostname for the container, when unspecified it
+    # will be the first subset of characters of the container ID.
+    hostname: gateway
+    # Array of ports to publish between <host>:<container>
+    ports:
+      - 9088:8088
+    # Map of environment variables and their associated values
+    # ref: https://docs.inductiveautomation.com/display/DOC81/Docker+Image#DockerImage-EnvironmentVariables
+    environment:
+      IGNITION_EDITION: standard
+      # The GATEWAY_ADMIN_PASSWORD is commented out since we're restoring a gwbk
+      # and we'll just use the credentials from there.  Uncommenting will perform
+      # a password reset if restoring from GWBK.
+      # GATEWAY_ADMIN_PASSWORD_FILE: /run/secrets/gateway-admin-password
+      ACCEPT_IGNITION_EULA: "Y"
+    # Compose manages networks for a given project, this array let's us specify the
+    # networks to join this container to.  In our example, both Ignition gateways are
+    # going to be connected to the `default` network, but only the main `gateway` and 
+    # `postgres` DB will be connected to the `db` network.
+    # ref: https://github.com/compose-spec/compose-spec/blob/master/spec.md#networks
+    networks:
+      - default
+      - db
+    # Volumes (or bind-mounts) to apply to the container.  If we use an explicit or relative
+    # path here, it is automatically configured as a bind-mount from our host to the container.
+    # If a name is specified, it is expected that a named volume is being defined.
+    volumes:
+      # This is the named volume that we're mapping to our data directory to preserve state.
+      - gateway-data:/usr/local/bin/ignition/data
+      # This is a bind-mount that we're using to make our gateway backup available in the container.
+      - ./gw-init/gateway.gwbk:/restore.gwbk
+    # Here we're mapping in a "secret" that will be available as a file under `/run/secrets/<secret name>`
+    secrets:
+      - gateway-admin-password
+    # Here we're using YAML multiline strings to collect the runtime arguments that we're 
+    # passing into the container.
+    # ref: https://yaml-multiline.info/
+    # ref: https://docs.inductiveautomation.com/display/DOC81/Docker+Image#DockerImage-RuntimeArguments
+    command: >
+      -n Ignition-pt2
+      -r /restore.gwbk
+
+  # The second container in our solution, this time an Ignition Edge instance.  
+  edge:
+    # We'll use the same image since we can specify the edition through an environment variable
+    image: inductiveautomation/ignition:8.1.19
+    hostname: edge
+    ports:
+      # This time we're mapping a separate host port, 9089, so as not to conflict with the `gateway`
+      # service defined above, which is using 9088.
+      - 9089:8088
+    environment:
+      IGNITION_EDITION: edge
+      # GATEWAY_ADMIN_PASSWORD_FILE: /run/secrets/gateway-admin-password
+      ACCEPT_IGNITION_EULA: "Y"
+      GATEWAY_NETWORK_0_HOST: gateway
+      EAM_SETUP_INSTALLSELECTION: Agent
+      EAM_AGENT_CONTROLLERSERVERNAME: Ignition-pt2
+      # Make sure you use this environment variable if you need/want to constrict the set of
+      # built-in modules to a subset, otherwise when you recreate the container, any modules
+      # you removed from the web-UI will be re-installed [from the image].
+      GATEWAY_MODULES_ENABLED: enterprise-administration,modbus-driver-v2,opc-ua,perspective,tag-historian
+    volumes:
+      - edge-data:/usr/local/bin/ignition/data
+      # You'll notice these additional bind-mounts here, this one makes sure that the container
+      # has the same UUID for Gateway Network in order to connect successfully to the `gateway`
+      # container without looking like a different unique connection.
+      - ./gw-init/edge-uuid.txt:/usr/local/bin/ignition/data/.uuid
+      # Similarly, we're also preserving (and mapping into this container from the file we have 
+      # saved on the host) the Gateway Network keystore.  Again, this is to make sure that when we
+      # bring this solution up, the gateway network connections are valid
+      - ./gw-init/edge-metro-keystore:/usr/local/bin/ignition/data/local/metro-keystore
+      - ./gw-init/edge.gwbk:/restore.gwbk
+    secrets:
+      - gateway-admin-password
+    command: >
+      -n Ignition-edge-pt2
+      -r /restore.gwbk
+
+  # Here we're definining a third container, this time a PostgreSQL database.  You could choose
+  # a wide variety of databases though, such as MariaDB, MySQL, Microsoft SQL Server, and more.
+  # All of those have container images ready to run!
+  # ref: https://hub.docker.com/_/postgres
+  postgres:
+    # We'll pin the image tag to at least the major version we're targeting.
+    # AVOID USING `latest` TAG!
+    image: postgres:14
+    # See the Docker Hub page for configuration options.
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres-password
+      POSTGRES_USER: ignition
+      POSTGRES_DB: ignition
+    # We'll preserve our database contents to a named volume, this time we're using the long-from
+    # syntax to specify the volume name and the mount point in the container.
+    # ref: https://github.com/compose-spec/compose-spec/blob/master/spec.md#long-syntax-4
+    volumes:
+      - type: volume
+        source: db-data
+        target: /var/lib/postgresql/data
+    secrets:
+      - postgres-password
+    # Notice here that we're using object syntax instead of array to define the networks for this
+    # container.  We're doing it this way so we can make sure that this `postgres` service resolves
+    # to a more generic `db` name in DNS (within the `db` network).
+    networks:
+      db:
+        aliases:
+          - db
+    
+  # Final container in this example is pgAdmin, so we can manage our database.
+  # ref: https://www.pgadmin.org/docs/pgadmin4/latest/index.html
+  pgadmin:
+    image: dpage/pgadmin4:6.14
+    ports:
+      - 9090:80
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD_FILE: /run/secrets/pgadmin-password
+      PGADMIN_DISABLE_POSTFIX: true
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+      - ./db-init/servers.json:/pgadmin4/servers.json
+    networks:
+      - db
+    secrets:
+      - pgadmin-password
+    
+# Top-level secrets key defines the secrets that we'll have available to the various
+# containers in our solution.
+# ref: https://github.com/compose-spec/compose-spec/blob/master/spec.md#secrets-top-level-element
+secrets:
+  postgres-password:
+    file: ./secrets/POSTGRES_PASSWORD
+  pgadmin-password:
+    file: ./secrets/PGADMIN_PASSWORD
+  gateway-admin-password:
+    file: ./secrets/GATEWAY_ADMIN_PASSWORD
+
+# Top-level networks key is optional if you just want to use the default network that
+# Docker Compose will create for this solution.  If you want to define additional networks,
+# they've got to first be defined here (and then mapped to your containers).
+# ref: https://github.com/compose-spec/compose-spec/blob/master/spec.md#networks-top-level-element
+networks:
+  # Both of the networks below are not being customized further, thus the fairly
+  # minimal definition here.
+  default:
+  db:
+
+# Top-level volumes key defines the volumes that we're mapping into our containers.  These will
+# be automatically created by Compose when you bring "up" the stack.
+# ref: https://github.com/compose-spec/compose-spec/blob/master/spec.md#volumes-top-level-element
+volumes:
+  gateway-data:
+  edge-data:
+  db-data:
+  pgadmin-data:
