@@ -6,10 +6,10 @@ In part two, we'll explore how to leverage Docker Compose to document your conta
 
 ## Files
 
-- `.env` - These environment variables will direct Docker Compose functionality.
-- `docker-compose.basic.yml` - This Compose YAML defines a stack with very basic configuration.  There is no automated gateway network connectivity or gateway backup restorations.
-- `docker-compose.yml` - This Compose YAML uses some more constructs such as secrets and additional container networks.  Additionally, restoration of GWBK's to the Ignition gateways, integrated gateway network / EAM connectivity, and more are packaged in.
-- `docker-compose.verbose.yml` - This is an aggressively commented version of `docker-compose.yml`.
+- [`.env`](.env) - These environment variables will direct Docker Compose functionality.
+- [`docker-compose.basic.yml`](docker-compose.basic.yml) - This Compose YAML defines a stack with very basic configuration.  There is no automated gateway network connectivity or gateway backup restorations.
+- [`docker-compose.yml`](docker-compose.yml) - This Compose YAML uses some more constructs such as secrets and additional container networks.  Additionally, restoration of GWBK's to the Ignition gateways, integrated gateway network / EAM connectivity, and more are packaged in.
+- [`docker-compose.verbose.yml`](docker-compose.verbose.yml) - This is an aggressively commented version of `docker-compose.yml`.
 
 ## Docker Compose Commands
 
