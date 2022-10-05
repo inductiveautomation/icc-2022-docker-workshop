@@ -161,7 +161,7 @@ docker network rm ignition-net
 # NOTE: this will also automatically create the named
 #       volume `ignition-data` if not present.
 docker run \
-  -d
+  -d \
   -p 9088:8088 \
   -e IGNITION_EDITION=standard \
   -v ignition-data:/usr/local/bin/ignition/data \
