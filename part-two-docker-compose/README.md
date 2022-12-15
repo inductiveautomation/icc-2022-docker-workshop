@@ -107,6 +107,6 @@ If you're coming to this after the workshop and just want to launch the stack, m
 
 There are various reference links in the solution files.  Below are some links to the services that will be deployed in your Compose stack:
 
-- http://gateway.vcap.me:9088 - Ignition Gateway (Standard Edition)
-- http://edge.vcap.me:9089 - Ignition Edge Gateway
-- http://pgadmin.vcap.me:9090 - pgAdmin UI for managing your database
+- http://gateway.localtest.me:9088 - Ignition Gateway (Standard Edition)
+- http://edge.localtest.me:9089 - Ignition Edge Gateway
+- http://pgadmin.localtest.me:9090 - pgAdmin UI for managing your database
